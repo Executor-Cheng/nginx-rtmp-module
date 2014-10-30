@@ -1036,6 +1036,135 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     return NGX_OK;
 }
 
+static ngx_int_t
+ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
+                   ngx_chain_t *in, ngx_rtmp_amf_elt_t *out_elts)
+{
+    ngx_rtmp_live_ctx_t            *ctx, *pctx;
+    ngx_chain_t                    *data, *rpkt;
+    ngx_rtmp_core_srv_conf_t       *cscf;
+    ngx_rtmp_live_app_conf_t       *lacf;
+    ngx_rtmp_session_t             *ss;
+    ngx_rtmp_header_t               ch;
+    ngx_int_t                       rc;
+    ngx_uint_t                      prio;
+    u_char                         *msg_type;
+
+    msg_type = (u_char *)(*out_elts).data;
+
+    lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
+    if (lacf == NULL) {
+        return NGX_ERROR;
+    }
+
+    if (!lacf->live || in == NULL  || in->buf == NULL) {
+        return NGX_OK;
+    }
+
+    ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
+    if (ctx == NULL || ctx->stream == NULL) {
+        return NGX_OK;
+    }
+
+    if (ctx->publishing == 0) {
+        ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+                       "live: %s from non-publisher", msg_type);
+        return NGX_OK;
+    }
+
+    // drop onTextData if the stream is not active
+    if (!ctx->stream->active) {
+        return NGX_OK;
+    }
+
+    ngx_log_debug2(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+                   "live: %s packet timestamp=%uD",
+                   msg_type, h->timestamp);
+
+    cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
+
+    prio = 0;
+    data = NULL;
+    rc = ngx_rtmp_append_amf(s, &data, NULL, out_elts,
+                             sizeof(out_elts) / sizeof(out_elts[0]));
+    if (rc != NGX_OK) {
+        if (data) {
+            ngx_rtmp_free_shared_chain(cscf, data);
+        }
+        ngx_log_debug0(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+           "live: onTextData data not prepared");
+        return NGX_ERROR;
+    }
+
+    ngx_log_debug0(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+           "live: onTextData data was prepared");
+
+    ngx_memzero(&ch, sizeof(ch));
+    ch.timestamp = h->timestamp;
+    ch.msid = NGX_RTMP_MSID;
+    ch.csid = h->csid;
+    ch.type = NGX_RTMP_MSG_AMF_META;
+
+    rpkt = ngx_rtmp_append_shared_bufs(cscf, data, in);
+
+    ngx_rtmp_prepare_message(s, &ch, NULL, rpkt);
+
+    for (pctx = ctx->stream->ctx; pctx; pctx = pctx->next) {
+        if (pctx == ctx || pctx->paused) {
+            ngx_log_debug0(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+               "live: onTextData skipping");
+            continue;
+        }
+
+        ss = pctx->session;
+
+        if (ngx_rtmp_send_message(ss, rpkt, prio) != NGX_OK) {
+            continue;
+        } else {
+            ngx_log_debug0(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+                   "live: onTextData Sent successfully");
+        }
+    }
+
+    if (data) {
+        ngx_rtmp_free_shared_chain(cscf, data);
+    }
+
+    if (rpkt) {
+        ngx_rtmp_free_shared_chain(cscf, rpkt);
+    }
+
+    return NGX_OK;
+}
+
+static ngx_int_t
+ngx_rtmp_live_on_cue_point(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
+                           ngx_chain_t *in)
+{
+    static ngx_rtmp_amf_elt_t   out_elts[] = {
+
+        { NGX_RTMP_AMF_STRING,
+          ngx_null_string,
+          "onCuePoint", 0 }
+    };
+
+    return ngx_rtmp_live_data(s, h, in, out_elts);
+}
+
+static ngx_int_t
+ngx_rtmp_live_on_text_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
+                           ngx_chain_t *in)
+{
+    static ngx_rtmp_amf_elt_t   out_elts[] = {
+
+        { NGX_RTMP_AMF_STRING,
+          ngx_null_string,
+          "onTextData", 0 }
+    };
+
+    return ngx_rtmp_live_data(s, h, in, out_elts);
+}
+
 
 static ngx_int_t
 ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
@@ -1118,6 +1247,7 @@ ngx_rtmp_live_postconfiguration(ngx_conf_t *cf)
 {
     ngx_rtmp_core_main_conf_t          *cmcf;
     ngx_rtmp_handler_pt                *h;
+    ngx_rtmp_amf_handler_t             *ch;
 
     cmcf = ngx_rtmp_conf_get_module_main_conf(cf, ngx_rtmp_core_module);
 
@@ -1148,6 +1278,14 @@ ngx_rtmp_live_postconfiguration(ngx_conf_t *cf)
 
     next_stream_eof = ngx_rtmp_stream_eof;
     ngx_rtmp_stream_eof = ngx_rtmp_live_stream_eof;
+
+    ch = ngx_array_push(&cmcf->amf);
+    ngx_str_set(&ch->name, "onTextData");
+    ch->handler = ngx_rtmp_live_on_text_data;
+
+    ch = ngx_array_push(&cmcf->amf);
+    ngx_str_set(&ch->name, "onCuePoint");
+    ch->handler = ngx_rtmp_live_on_cue_point;
 
     return NGX_OK;
 }
