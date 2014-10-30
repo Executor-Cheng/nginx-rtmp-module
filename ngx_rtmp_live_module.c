@@ -1051,14 +1051,6 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     u_char                         *msg_type;
 
     msg_type = (u_char *)out_elts[0].data;
-/*
-    static ngx_rtmp_amf_elt_t   out_elts[] = {
-
-        { NGX_RTMP_AMF_STRING,
-          ngx_null_string,
-          msg_type, 0 }
-    };
-*/
 
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
     if (lacf == NULL) {
@@ -1080,7 +1072,7 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         return NGX_OK;
     }
 
-    // drop onTextData if the stream is not active
+    /* drop the data packet if the stream is not active */
     if (!ctx->stream->active) {
         return NGX_OK;
     }
@@ -1098,13 +1090,8 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         if (data) {
             ngx_rtmp_free_shared_chain(cscf, data);
         }
-        ngx_log_debug0(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
-           "live: onTextData data not prepared");
         return NGX_ERROR;
     }
-
-    ngx_log_debug0(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
-           "live: onTextData data was prepared");
 
     ngx_memzero(&ch, sizeof(ch));
     ch.timestamp = h->timestamp;
@@ -1118,8 +1105,6 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     for (pctx = ctx->stream->ctx; pctx; pctx = pctx->next) {
         if (pctx == ctx || pctx->paused) {
-            ngx_log_debug0(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
-               "live: onTextData skipping");
             continue;
         }
 
@@ -1127,9 +1112,6 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
         if (ngx_rtmp_send_message(ss, rpkt, prio) != NGX_OK) {
             continue;
-        } else {
-            ngx_log_debug0(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
-                   "live: onTextData Sent successfully");
         }
     }
 
