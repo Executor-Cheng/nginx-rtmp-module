@@ -1142,6 +1142,10 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ngx_rtmp_free_shared_chain(cscf, rpkt);
     }
 
+    ngx_rtmp_update_bandwidth(&ctx->stream->bw_in, h->mlen);
+    ngx_rtmp_update_bandwidth(&ctx->stream->bw_out, h->mlen * peers);
+    ngx_rtmp_update_bandwidth(&ctx->stream->bw_in_data, h->mlen);
+
     return NGX_OK;
 }
 
