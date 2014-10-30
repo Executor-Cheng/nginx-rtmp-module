@@ -1038,7 +1038,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
 static ngx_int_t
 ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
-                   ngx_chain_t *in, ngx_rtmp_amf_elt_t *out_elts)
+                   ngx_chain_t *in, ngx_rtmp_amf_elt_t *out_elts, ngx_uint_t out_elts_size)
 {
     ngx_rtmp_live_ctx_t            *ctx, *pctx;
     ngx_chain_t                    *data, *rpkt;
@@ -1050,7 +1050,15 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_uint_t                      prio;
     u_char                         *msg_type;
 
-    msg_type = (u_char *)(*out_elts).data;
+    msg_type = (u_char *)out_elts[0].data;
+/*
+    static ngx_rtmp_amf_elt_t   out_elts[] = {
+
+        { NGX_RTMP_AMF_STRING,
+          ngx_null_string,
+          msg_type, 0 }
+    };
+*/
 
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
     if (lacf == NULL) {
@@ -1085,8 +1093,7 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     prio = 0;
     data = NULL;
-    rc = ngx_rtmp_append_amf(s, &data, NULL, out_elts,
-                             sizeof(out_elts) / sizeof(out_elts[0]));
+    rc = ngx_rtmp_append_amf(s, &data, NULL, out_elts, out_elts_size);
     if (rc != NGX_OK) {
         if (data) {
             ngx_rtmp_free_shared_chain(cscf, data);
@@ -1148,7 +1155,8 @@ ngx_rtmp_live_on_cue_point(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
           "onCuePoint", 0 }
     };
 
-    return ngx_rtmp_live_data(s, h, in, out_elts);
+    return ngx_rtmp_live_data(s, h, in, out_elts,
+            sizeof(out_elts) / sizeof(out_elts[0]));
 }
 
 static ngx_int_t
@@ -1162,7 +1170,8 @@ ngx_rtmp_live_on_text_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
           "onTextData", 0 }
     };
 
-    return ngx_rtmp_live_data(s, h, in, out_elts);
+    return ngx_rtmp_live_data(s, h, in, out_elts,
+            sizeof(out_elts) / sizeof(out_elts[0]));
 }
 
 
