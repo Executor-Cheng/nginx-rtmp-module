@@ -357,6 +357,9 @@ ngx_rtmp_live_set_status(ngx_rtmp_session_t *s, ngx_chain_t *control,
 
     ctx->cs[1].active = 0;
     ctx->cs[1].dropped = 0;
+
+    ctx->cs[2].active = 0;
+    ctx->cs[2].dropped = 0;
 }
 
 
@@ -556,6 +559,7 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 
     ctx->cs[0].csid = NGX_RTMP_CSID_VIDEO;
     ctx->cs[1].csid = NGX_RTMP_CSID_AUDIO;
+    ctx->cs[2].csid = NGX_RTMP_CSID_AMF;
 
     if (!ctx->publishing && ctx->stream->active) {
         ngx_rtmp_live_start(s);
@@ -1048,6 +1052,10 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_rtmp_header_t               ch;
     ngx_int_t                       rc;
     ngx_uint_t                      prio;
+    ngx_uint_t                      peers;
+    uint32_t                        delta;
+    ngx_rtmp_live_chunk_stream_t   *cs;
+
     u_char                         *msg_type;
 
     msg_type = (u_char *)out_elts[0].data;
@@ -1083,6 +1091,10 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
 
+    cs  = &ctx->cs[2];
+    cs->active = 1;
+
+    peers = 0;
     prio = 0;
     data = NULL;
     rc = ngx_rtmp_append_amf(s, &data, NULL, out_elts, out_elts_size);
@@ -1099,8 +1111,9 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ch.csid = h->csid;
     ch.type = NGX_RTMP_MSG_AMF_META;
 
-    rpkt = ngx_rtmp_append_shared_bufs(cscf, data, in);
+    delta = ch.timestamp - cs->timestamp;
 
+    rpkt = ngx_rtmp_append_shared_bufs(cscf, data, in);
     ngx_rtmp_prepare_message(s, &ch, NULL, rpkt);
 
     for (pctx = ctx->stream->ctx; pctx; pctx = pctx->next) {
@@ -1111,8 +1124,14 @@ ngx_rtmp_live_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ss = pctx->session;
 
         if (ngx_rtmp_send_message(ss, rpkt, prio) != NGX_OK) {
+            ++pctx->ndropped;
+            cs->dropped += delta;
             continue;
         }
+
+        cs->timestamp += delta;
+        ++peers;
+        ss->current_time = cs->timestamp;
     }
 
     if (data) {
