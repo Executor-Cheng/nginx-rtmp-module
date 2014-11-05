@@ -1513,15 +1513,22 @@ ngx_rtmp_relay_on_meta_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_rtmp_relay_ctx_t       *ctx;
     ngx_rtmp_relay_ctx_t       *pctx;
 
+    ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
+        "relay: got metadata from @setDataFrame invocation from publisher.");
+
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_relay_module);
     if (ctx == NULL) {
         return NGX_OK;
     }
 
     pctx = ctx->play;
+    if (!pctx->session->relay){
+      return NGX_OK;
+    }
 
     ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
             "relay: sending metadata from @setDataFrame invocation from publisher to %V/%V", &pctx->url, &pctx->play_path);
+
     return ngx_rtmp_relay_send_set_data_frame(pctx->session);
 
     // for (pctx = ctx->play; pctx; pctx = pctx->next) {
