@@ -1300,7 +1300,7 @@ ngx_rtmp_record_postconfiguration(ngx_conf_t *cf)
     *h = ngx_rtmp_record_avd;
 
     h = ngx_array_push(&cmcf->events[NGX_RTMP_MSG_AMF_META]);
-    *h = ngx_rtmp_record_av;
+    *h = ngx_rtmp_record_avd;
 
     next_publish = ngx_rtmp_publish;
     ngx_rtmp_publish = ngx_rtmp_record_publish;
