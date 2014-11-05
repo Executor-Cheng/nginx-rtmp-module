@@ -1475,6 +1475,12 @@ ngx_rtmp_relay_on_status(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 sizeof(in_elts) / sizeof(in_elts[0]));
     }
 
+    if (!ngx_strncasecmp(v.level, (u_char *)"error",
+            ngx_strlen("error"))) {
+        ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
+            "relay: onStatus: level='%s' code='%s' description='%s'",
+            v.level, v.code, v.desc);
+    }
     ngx_log_debug3(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
             "relay: onStatus: level='%s' code='%s' description='%s'",
             v.level, v.code, v.desc);
