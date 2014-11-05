@@ -1518,18 +1518,21 @@ ngx_rtmp_relay_on_meta_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         return NGX_OK;
     }
 
-    ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
-            "relay: sending metadata from @setDataFrame invocation from publisher");
+    pctx = ctx->play;
 
-    for (pctx = ctx->play; pctx; pctx = pctx->next) {
-        if (!pctx->session->relay) continue;
-        if (ngx_rtmp_relay_send_set_data_frame(pctx->session) != NGX_OK) {
-            ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
-                    "relay: unable to send @setDataFrame to %V/%V", &pctx->url, &pctx->play_path);
-        }
-    }
+    ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
+            "relay: sending metadata from @setDataFrame invocation from publisher to %V/%V", &pctx->url, &pctx->play_path);
+    return ngx_rtmp_relay_send_set_data_frame(pctx->session);
 
-    return NGX_OK;
+    // for (pctx = ctx->play; pctx; pctx = pctx->next) {
+    //     if (!pctx->session->relay) continue;
+    //     if (ngx_rtmp_relay_send_set_data_frame(pctx->session) != NGX_OK) {
+    //         ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
+    //                 "relay: unable to send @setDataFrame to %V/%V", &pctx->url, &pctx->play_path);
+    //     }
+    // }
+
+    // return NGX_OK;
 }
 
 static ngx_int_t
