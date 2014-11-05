@@ -1527,7 +1527,7 @@ ngx_rtmp_relay_on_meta_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     }
 
     ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
-            "relay: sending metadata from @setDataFrame invocation from publisher to %V/%V", &pctx->url, &pctx->play_path);
+            "relay: sending metadata from @setDataFrame invocation from publisher to %V/%V/%V", &pctx->url,  &pctx->app, &pctx->play_path);
 
     return ngx_rtmp_relay_send_set_data_frame(pctx->session);
 
